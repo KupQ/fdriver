@@ -1,578 +1,123 @@
 <script setup>
-import { ref } from 'vue';
-const fileInput = ref('');
-const modal = ref(null);
-const state = ref(0);
-const ready = ref(false);
-const progressValue = ref(0);
-const fileElement = ref('');
-const cwd=new URL(window.location).searchParams.get("p") || "";
-const cancelToken=ref(null);
-const linkCopied=ref(false);
+defineProps({
+  modelValue: Boolean,
+});
 
-function chooseFile() {
-
-  fileInput.value.click();
-}
-
-function handleFileChange(event) {
-
-  const file = event.target.files[0]
- 
-  if (file) {
-    ready.value = true;
-   fileElement.value=file.name
-  }
-}
-
-function removeFile() {
-  fileInput.value.value = "";
-  ready.value = false;
-  if (fileElement.value) {
-    fileElement.value = "";
-  }
-}
-
-function generateUniqueId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-}
-
-async function uploadFile() {
-
- const file = fileInput.value.files[0];
-  if (!file) return;
-   state.value = 1;
-    progressValue.value=0;
-
-  const uniqueDir = generateUniqueId();
- 
-  const uploadUrl = `/api/write/items/${cwd}${uniqueDir}/${file.name}`;
-  const headers = {};
-  cancelToken.value=axios.CancelToken.source();
-  try {
-    await axios.put(uploadUrl, file, {
-      headers,
-      onUploadProgress: (progressEvent) => {
-        progressValue.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-		if (progressValue.value === 100) {
-          setTimeout(() => {
-            state.value = 3; 
-          }, 500); 
-        }
-        
-      },
-	  cancelToken:cancelToken.token,
-    });
-
-
-  } catch (error) {
-    if (axios.isCancel(error)) {
-          console.log('Upload canceled');
-    } else {
-          console.error(`Upload ${this.file.name} failed`, error);
-          state.value = 2;
-    }
-  }
-  }
-
-
-  function copyLink(link) {
-     const url = new URL(link, window.location.origin);
-      navigator.clipboard.writeText(url.toString()).then(() => {
-      linkCopied.value = true;
-        setTimeout(() => {
-        linkCopied.value = false;
-        }, 3000); 
-      });     
-    }
-
-
-
-
-function cancelUpload() {
-  if(cancelToken){
-   cancelToken.value.cancel();
-   state.value=0;
-  }
-}
-
-function resetModal() {
-  state.value = 0;
-  progressValue.value = 0;
-  ready.value = false;
-  fileInput.value.value = "";
-   if (fileElement.value) {
-    fileElement.value= "";
-  }
-}
+const emit = defineEmits(["update:modelValue", "upload", "createFolder"]);
 </script>
-
 <template>
-  <div ref="modal" class="modal" :data-state="state" :data-ready="ready">
-    <div class="modal__header">
-      <button class="modal__close-button" type="button" @click="resetModal">
-        <svg class="modal__close-icon" viewBox="0 0 16 16" width="16px" height="16px" aria-hidden="true">
-          <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <polyline points="1,1 15,15" />
-            <polyline points="15,1 1,15" />
-          </g>
-        </svg>
-        <span class="modal__sr">Close</span>
-      </button>
-    </div>
-    <div class="modal__body">
-      <div class="modal__col">
-        <!-- up -->
-        <svg class="modal__icon modal__icon--blue" viewBox="0 0 24 24" width="24px" height="24px" aria-hidden="true">
-          <g fill="none" stroke="hsl(223,90%,50%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle class="modal__icon-sdo69" cx="12" cy="12" r="11" stroke-dasharray="69.12 69.12" />
-            <polyline class="modal__icon-sdo14" points="7 12 12 7 17 12" stroke-dasharray="14.2 14.2" />
-            <line class="modal__icon-sdo10" x1="12" y1="7" x2="12" y2="17" stroke-dasharray="10 10" />
-          </g>
-        </svg>
-        <!-- error -->
-        <svg class="modal__icon modal__icon--red" viewBox="0 0 24 24" width="24px" height="24px" aria-hidden="true"  v-if="state === 2">
-          <g fill="none" stroke="hsl(3,90%,50%)" stroke-width="2" stroke-linecap="round">
-            <circle class="modal__icon-sdo69" cx="12" cy="12" r="11" stroke-dasharray="69.12 69.12" />
-            <line class="modal__icon-sdo14" x1="7" y1="7" x2="17" y2="17" stroke-dasharray="14.2 14.2" />
-            <line class="modal__icon-sdo14" x1="17" y1="7" x2="7" y2="17" stroke-dasharray="14.2 14.2" />
-          </g>
-        </svg>
-        <!-- check -->
-        <svg class="modal__icon modal__icon--green" viewBox="0 0 24 24" width="24px" height="24px" aria-hidden="true" v-if="state === 3">
-          <g fill="none" stroke="hsl(138,90%,50%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle class="modal__icon-sdo69" cx="12" cy="12" r="11" stroke-dasharray="69.12 69.12" />
-            <polyline class="modal__icon-sdo14" points="7 12.5 10 15.5 17 8.5" stroke-dasharray="14.2 14.2" />
-          </g>
-        </svg>
-      </div>
-      <div class="modal__col">
-        <div class="modal__content">
-          <h2 class="modal__title">Upload a File</h2>
-          <p class="modal__message">Select a file to upload from your computer or device.</p>
-          <div class="modal__actions" @click="chooseFile">
-            <button class="modal__button modal__button--upload" type="button">Choose File</button>
-            <input ref="fileInput" type="file"  accept="*"
-              multiple
-              hidden  @change="handleFileChange">
-          </div>
-          <div class="modal__actions" v-if="state === 0 && fileElement">
-            <svg class="modal__file-icon" viewBox="0 0 24 24" width="24px" height="24px">
-              <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="4 1 12 1 20 8 20 23 4 23" />
-                <polyline points="12 1 12 8 20 8" />
-              </g>
+  <div class="popup">
+    <Transition name="fade">
+      <div
+        v-if="modelValue"
+        class="popup-modal"
+        @click="emit('update:modelValue', false)"
+      ></div>
+    </Transition>
+    <Transition name="slide-up">
+      <div v-if="modelValue" class="popup-content">
+        <div class="button-grid">
+          <button onclick="this.lastElementChild.click()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+              <!--! Font Awesome Pro 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. -->
+              <path
+                d="M149.1 64.8L138.7 96H64C28.7 96 0 124.7 0 160V416c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V160c0-35.3-28.7-64-64-64H373.3L362.9 64.8C356.4 45.2 338.1 32 317.4 32H194.6c-20.7 0-39 13.2-45.5 32.8zM256 384c-53 0-96-43-96-96s43-96 96-96s96 43 96 96s-43 96-96 96z"
+              />
             </svg>
-            <div class="modal__file" data-file>{{fileElement}}</div>
-            <button class="modal__close-button" type="button" @click="removeFile">
-              <svg class="modal__close-icon" viewBox="0 0 16 16" width="16px" height="16px" aria-hidden="true">
-                <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                  <polyline points="4,4 12,12" />
-                  <polyline points="12,4 4,12" />
-                </g>
-              </svg>
-              <span class="modal__sr">Remove</span>
-            </button>
-            <button class="modal__button" type="button" @click="uploadFile">Upload</button>
-          </div>
-        </div>
-       <div class="modal__content" v-if="state === 1">
-           <h2 class="modal__title">Uploading…</h2>
-           <p class="modal__message">Just give us a moment to process your file.</p>
-           <div class="modal__actions">
-              <div class="modal__progress">
-	
-                <div class="modal__progress-value" data-progress-value>{{ progressValue }}%</div>
-                   <div class="modal__progress-bar">
-                      <div class="modal__progress-fill" :style="{ transform: `scaleX(${progressValue / 100})` }"></div>
-                   </div>
-                </div>
-               <button class="modal__button" type="button" @click="cancelUpload">Cancel</button>
-          </div>
-    </div>
-	</div>
-        <div class="modal__content" v-if="state === 2">
-          <h2 class="modal__title">Oops!</h2>
-          <p class="modal__message">Your file could not be uploaded due to an error. Try uploading it again?</p>
-          <div class="modal__actions modal__actions--center">
-            <button class="modal__button" type="button" @click="uploadFile">Retry</button>
-            <button class="modal__button" type="button" @click="cancelUpload">Cancel</button>
-          </div>
-        </div>
-        <div class="modal__content" v-if="state === 3">
-          <h2 class="modal__title">Upload Successful!</h2>
-          <p class="modal__message">Your file has been uploaded. You can copy the link to your clipboard.</p>
-          <div class="modal__actions modal__actions--center">
-		     <button class="modal__button" type="button" @click="copyLink(`/raw/${fileElement}`)">
-                  <template v-if="linkCopied">
-                    <svg class="modal__icon modal__icon--green" viewBox="0 0 24 24" width="16px" height="16px" aria-hidden="true">
-                      <g fill="none" stroke="hsl(138, 90%, 50%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="11" />
-                        <polyline points="7 12.5 10 15.5 17 8.5" />
-                      </g>
-                    </svg>
-                    Copied
-                  </template>
-                  <template v-else>
-                    Copy Link
-                  </template>
-                </button>
-            <button class="modal__button" type="button" @click="resetModal">Done</button>
-          </div>
+            <span>Take Photo</span>
+            <input
+              type="file"
+              accept="image/*"
+              capture="camera"
+              hidden
+              @change="emit('upload', $event.target)"
+            />
+          </button>
+          <button onclick="this.lastElementChild.click()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512">
+              <!--! Font Awesome Pro 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. -->
+              <path
+                d="M256 0H576c35.3 0 64 28.7 64 64V288c0 35.3-28.7 64-64 64H256c-35.3 0-64-28.7-64-64V64c0-35.3 28.7-64 64-64zM476 106.7C471.5 100 464 96 456 96s-15.5 4-20 10.7l-56 84L362.7 169c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6h80 48H552c8.9 0 17-4.9 21.2-12.7s3.7-17.3-1.2-24.6l-96-144zM336 96c0-17.7-14.3-32-32-32s-32 14.3-32 32s14.3 32 32 32s32-14.3 32-32zM64 128h96V384v32c0 17.7 14.3 32 32 32H320c17.7 0 32-14.3 32-32V384H512v64c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V192c0-35.3 28.7-64 64-64zm8 64c-8.8 0-16 7.2-16 16v16c0 8.8 7.2 16 16 16H88c8.8 0 16-7.2 16-16V208c0-8.8-7.2-16-16-16H72zm0 104c-8.8 0-16 7.2-16 16v16c0 8.8 7.2 16 16 16H88c8.8 0 16-7.2 16-16V312c0-8.8-7.2-16-16-16H72zm0 104c-8.8 0-16 7.2-16 16v16c0 8.8 7.2 16 16 16H88c8.8 0 16-7.2 16-16V416c0-8.8-7.2-16-16-16H72zm336 16v16c0 8.8 7.2 16 16 16h16c8.8 0 16-7.2 16-16V416c0-8.8-7.2-16-16-16H424c-8.8 0-16 7.2-16 16z"
+              />
+            </svg>
+            <span>Image/Video</span>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              hidden
+              @change="emit('upload', $event.target)"
+            />
+          </button>
+          <button onclick="this.lastElementChild.click()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
+              <!--! Font Awesome Pro 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. -->
+              <path
+                d="M0 64C0 28.7 28.7 0 64 0H224V128c0 17.7 14.3 32 32 32H384V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64zm384 64H256V0L384 128z"
+              />
+            </svg>
+            <span>File</span>
+            <input
+              type="file"
+              accept="*"
+              multiple
+              hidden
+              @change="emit('upload', $event.target)"
+            />
+          </button>
+          <button type="button" @click="emit('createFolder')">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+              <!--! Font Awesome Pro 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. -->
+              <path
+                d="M512 416c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V96C0 60.7 28.7 32 64 32H181.5c17 0 33.3 6.7 45.3 18.7l26.5 26.5c12 12 28.3 18.7 45.3 18.7H448c35.3 0 64 28.7 64 64V416zM232 376c0 13.3 10.7 24 24 24s24-10.7 24-24V312h64c13.3 0 24-10.7 24-24s-10.7-24-24-24H280V200c0-13.3-10.7-24-24-24s-24 10.7-24 24v64H168c-13.3 0-24 10.7-24 24s10.7 24 24 24h64v64z"
+              />
+            </svg>
+            <span>Create Folder</span>
+          </button>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
-
-
 <style>
-.modal {
-	background-color: hsl(var(--hue),10%,95%);
-	border-radius: 1em;
-	box-shadow: 0 0.75em 1em hsla(var(--hue),10%,5%,0.3);
-	color: hsl(var(--hue),10%,5%);
-	width: calc(100% - 3em);
-	max-width: 34.5em;
-	overflow: hidden;
-	position: relative;
-	transition:
-		background-color var(--trans-dur),
-		color var(--trans-dur);
-}
-.modal:before {
-	background-color: hsl(223,90%,60%);
-	border-radius: 50%;
-	content: "";
-	filter: blur(60px);
-	opacity: 0.15;
-	position: absolute;
-	top: -8em;
-	right: -15em;
-	width: 25em;
-	height: 25em;
-	z-index: 0;
-	transition: background-color var(--trans-dur);
-}
-.modal__actions {
-	animation-delay: 0.2s;
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-}
-.modal__body,
-.modal__header {
-	position: relative;
-	z-index: 1;
-}
-.modal__body {
-	display: flex;
-	flex-direction: column;
-	padding: 0 2em 1.875em 1.875em;
-}
-.modal__button,
-.modal__close-button {
-	color: currentColor;
-	cursor: pointer;
-	-webkit-tap-highlight-color: transparent;
-}
-.modal__button {
-	background-color: hsla(var(--hue),10%,50%,0.2);
-	border-radius: 0.25rem;
-	font-size: 0.75em;
-	padding: 0.5rem 2rem;
-	transition:
-		background-color var(--trans-dur),
-		border-color var(--trans-dur),
-		opacity var(--trans-dur);
-	width: 100%;
-}
-.modal__button + .modal__button {
-	margin-top: 0.75em;
-}
-.modal__button:disabled {
-	opacity: 0.5;
-}
-.modal__button:focus,
-.modal__close-button:focus {
-	outline: transparent;
-}
-.modal__button:hover,
-.modal__button:focus-visible {
-	background-color: hsla(var(--hue),10%,60%,0.2);
-}
-.modal__button--upload {
-	background-color: transparent;
-	border: 0.125rem dashed hsla(var(--hue),10%,50%,0.4);
-	flex: 1;
-	padding: 0.375rem 2rem;
-}
-.modal__col + .modal__col {
-	flex: 1;
-	margin-top: 1.875em;
-}
-.modal__progress{
- width: 100%;
-  height: 20px;
-  background-color: #ccc; 
-  border-radius: 4px;
-}
-.modal__close-button,
-.modal__message,
-.modal__progress-value {
-	color: hsl(var(--hue),10%,30%);
-	transition: color var(--trans-dur);
-}
-.modal__close-button {
-	background-color: transparent;
-	display: flex;
-	width: 1.5em;
-	height: 1.5em;
-	transition: color var(--trans-dur);
-}
-.modal__close-button:hover,
-.modal__close-button:focus-visible {
-	color: hsl(var(--hue),10%,40%);
-}
-.modal__close-icon {
-	display: block;
-	margin: auto;
-	pointer-events: none;
-	width: 50%;
-	height: auto;
-}
-.modal__content > * {
-	/* don’t use shorthand syntax, or actions delay will be overridden */
-	animation-name: fadeSlideIn;
-	animation-duration: 0.5s;
-	animation-timing-function: ease-in-out;
-	animation-fill-mode: forwards;
-	opacity: 0;
-}
-.modal__file {
-	flex: 1;
-	font-size: 0.75em;
-	font-weight: 700;
-	margin-right: 0.25rem;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-.modal__file ~ .modal__button {
-	margin-top: 1.5em;
-}
-.modal__file-icon {
-	color: hsl(var(--hue),10%,50%);
-	display: block;
-	margin-right: 0.75em;
-	width: 1.5em;
-	height: 1.5em;
-	transition: color var(--trans-dur);
-}
-.modal__header {
-	display: flex;
-	justify-content: flex-end;
-	align-items: center;
-	height: 2.5em;
-	padding: 0.5em;
-}
-.modal__icon {
-	display: block;
-	margin: auto;
-	width: 2.25em;
-	height: 2.25em;
-}
-.modal__icon--blue g {
-	stroke: hsl(223,90%,50%);
-}
-.modal__icon--red g {
-	stroke: hsl(3,90%,50%);
-}
-.modal__icon--green g {
-	stroke: hsl(138,90%,40%);
-}
-.modal__icon circle,
-.modal__icon line,
-.modal__icon polyline {
-	animation: sdo 0.25s ease-in-out forwards;
-	transition: stroke var(--trans-dur);
-}
-.modal__icon :nth-child(2) {
-	animation-delay: 0.25s;
-}
-.modal__icon :nth-child(3) {
-	animation-delay: 0.5s;
-}
-.modal__icon-sdo10 {
-	stroke-dashoffset: 10;
-}
-.modal__icon-sdo14 {
-	stroke-dashoffset: 14.2;
-}
-.modal__icon-sdo69 {
-	stroke-dashoffset: 69.12;
-	transform: rotate(-90deg);
-	transform-origin: 12px 12px;
-}
-.modal__message {
-	animation-delay: 0.1s;
-	font-size: 1em;
-	margin-bottom: 1.5em;
-	min-height: 3em;
-}
-.modal__progress {
-	flex: 1;
-}
-.modal__progress + .modal__button {
-	margin-top: 1.75em;
-}
-.modal__progress-bar {
-	background-image: linear-gradient(90deg,hsl(var(--hue),90%,50%),hsl(var(--hue),90%,70%));
-	border-radius:4px;
-	overflow: hidden;
-	width: 100%;
-	height: 100%;
-	transform: translate3d(0,0,0);
-}
-.modal__progress-fill {
-	background-color: hsl(var(--hue),10%,90%);
-	width: inherit;
-	height: 100%;
-	transition: transform 0.1s ease-in-out;
-}
-.modal__progress-value {
-	font-size: 0.75em;
-	font-weight: 700;
-	line-height: 1.333;
-	text-align: right;
-}
-.modal__sr {
-	overflow: hidden;
-	position: absolute;
-	width: 1px;
-	height: 1px;
-}
-.modal__title {
-	font-size: 1.25em;
-	font-weight: 500;
-	line-height: 1.2;
-	margin-bottom: 1.5rem;
-	text-align: center;
-}
-/* state change */
-[data-state="2"]:before {
-	background-color: hsl(3,90%,60%);
-}
-[data-state="3"]:before {
-	background-color: hsl(138,90%,60%);
-}
-.modal__icon + .modal__icon,
-[data-state="1"] .modal__icon:first-child,
-[data-state="2"] .modal__icon:first-child,
-[data-state="3"] .modal__icon:first-child,
-.modal__content + .modal__content,
-[data-state="1"] .modal__content:first-child,
-[data-state="2"] .modal__content:first-child,
-[data-state="3"] .modal__content:first-child {
-	display: none;
-}
-[data-state="1"] .modal__icon:first-child,
-[data-state="2"] .modal__icon:nth-child(2),
-[data-state="3"] .modal__icon:nth-child(3),
-[data-state="1"] .modal__content:nth-child(2),
-[data-state="2"] .modal__content:nth-child(3),
-[data-state="3"] .modal__content:nth-child(4) {
-	display: block;
-}
-[data-ready="false"] .modal__content:first-child .modal__actions:nth-of-type(2),
-[data-ready="true"] .modal__content:first-child .modal__actions:first-of-type {
-	display: none;
-}
-[data-ready="true"] .modal__content:first-child .modal__actions:nth-of-type(2) {
-	display: flex;
+.popup-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
-/* Dark theme */
-@media (prefers-color-scheme: dark) {
-	:root {
-		--bg: hsl(var(--hue),10%,35%);
-		--fg: hsl(var(--hue),10%,95%);
-	}
-	.modal {
-		background-color: hsl(var(--hue),10%,10%);
-		color: hsl(var(--hue),10%,95%);
-	}
-	.modal__close-button,
-	.modal__message,
-	.modal__progress-value {
-		color: hsl(var(--hue),10%,70%);
-	}
-	.modal__close-button:hover,
-	.modal__close-button:focus-visible {
-		color: hsl(var(--hue),10%,80%);
-	}
-	.modal__file-icon {
-		color: hsl(var(--hue),10%,60%);
-	}
-	.modal__icon--blue g {
-		stroke: hsl(223,90%,60%);
-	}
-	.modal__icon--red g {
-		stroke: hsl(3,90%,60%);
-	}
-	.modal__icon--green g {
-		stroke: hsl(138,90%,60%);
-	}
-	.modal__progress-fill {
-		background-color: hsl(var(--hue),10%,20%);
-	}
+.popup-content {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  z-index: 2;
+  border-radius: 16px 16px 0 0;
+  background-color: white;
 }
 
-/* Animations */
-@keyframes fadeSlideIn {
-	from { opacity: 0; transform: translateY(33%); }
-	to { opacity: 1; transform: translateY(0); }
-}
-@keyframes sdo {
-	to { stroke-dashoffset: 0; }
+.popup .button-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-gap: 8px;
+  padding: 8px;
 }
 
-/* Beyond mobile */
-@media (min-width: 768px) {
-	.modal__actions--center {
-		justify-content: center;
-		margin-left: -4.125em;
-	}
-	.modal__body {
-		flex-direction: row;
-		align-items: center;
-	}
-	.modal__button {
-		width: auto;
-	}
-	.modal__button + .modal__button {
-		margin-top: 0;
-		margin-left: 1.5rem;
-	}
-	.modal__file ~ .modal__button {
-		margin-top: 0;
-	}
-	.modal__file ~ .modal__close-button {
-		margin-right: 1.5rem;
-	}
-	.modal__progress {
-		margin-right: 2em;
-	}
-	.modal__progress + .modal__button {
-		margin-top: 0;
-	}
-	.modal__col + .modal__col {
-		margin-top: 0;
-		margin-left: 1.875em;
-	}
-	.modal__title {
-		text-align: left;
-	}
+.popup button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  font-size: 12px;
+}
+
+.popup svg {
+  width: 32px;
+  height: 32px;
+  margin: 8px;
 }
 </style>

@@ -19,7 +19,6 @@ const emit = defineEmits(["update:modelValue", "click"]);
         @click="emit('update:modelValue', false)"
       ></div>
     </Transition>
-    
     <div v-show="modelValue" class="menu-content">
       <ul>
         <li
